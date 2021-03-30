@@ -1,2 +1,3 @@
-.pdf
+*.pdf
 hn_scrapper_dev_env/
+__pycahce__
