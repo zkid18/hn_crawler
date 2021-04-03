@@ -30,3 +30,7 @@ optional arguments:
                         Output files directory
   -d, --debug           Show debug messages
 ```
+
+## TO-DO
+- PEP styleguides
+- Save visited links to Redis cache
