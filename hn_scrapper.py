@@ -105,10 +105,9 @@ def write_articles_to_disk(article_dir, link_url):
 
 
 async def write_links_to_store(links_hash, rank):
-    pairs = zip(links_hash, rank)
-    # await redis.msetnx(pairs)
-    # redis.close()
-    # await redis.wait_closed()
+    '''Save to visited artciels to cache [WIP]
+    '''
+    pass 
    
 
 async def main(output_dir):
