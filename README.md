@@ -20,17 +20,18 @@ pip3 install -r requirements.txt
 ````
 $ python3 ycrawler.py -h
 
-usage: ycrawler.py [-h] [-o OUTPUT] [-i INTERVAL] [-d]
+usage: hn_scrapper.py [-h] [-o OUTPUT] [-i INTERVAL] [-d]
 
-Async crawler for news.ycombinator.com (YCrawler)
+Async crawler for news.ycombinator.com
 
 optional arguments:
   -h, --help            show this help message and exit
   -o OUTPUT, --output OUTPUT
                         Output files directory
+  -i INTERVAL, --interval INTERVAL
+                        Interval for parsing                  
   -d, --debug           Show debug messages
 ```
 
 ## TO-DO
-- PEP styleguides
 - Save visited links to Redis cache
