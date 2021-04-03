@@ -1,12 +1,15 @@
-import asyncio
 import aioredis
+import asyncio
 import async_timeout
+import argparse
 import hashlib
 import re
 import sys
 from bs4 import BeautifulSoup
+import pathlib
 import random
 import logging
+import os
 
 from store import RedisAsyncStore
 
@@ -18,6 +21,7 @@ MAX_HOST_CONNECTIONS = 10
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1 Safari/605.1.15',
 }
+DOCUMENT_ROOT = 'links'
 
 async def fetch(url):
     '''
@@ -67,17 +71,36 @@ async def parse_main_page(page):
     return [links['href'] for links in discussion_links]
 
 
-async def parse_article_page(article_url):
+async def parse_article_page(article_dir, article_url):
+    '''Parse the article's page
+
+        Args:
+            artcile_dir (str): Name of the article's folder
+            article_url (str): URL for the article to parse
+    '''
     logging.info('Parsing the article page: {} searching for the links in the comments'.format(article_url))
     article_page = await fetch(article_url)
     soup = BeautifulSoup(article_page, 'html.parser')
     links = soup.find_all(rel="nofollow")
     valid_links = [link['href'] for link in links]
+    for link in valid_links:
+        write_articles_to_disk(article_dir, article_url)
     return valid_links
 
 
-async def write_articles_to_disk():
-    return
+def write_articles_to_disk(article_dir, link_url):
+    '''Write the comment's link's URL to the artcile's .txtx file 
+        in a the dedicated folder
+        
+        Args:
+            article_dir (str): Name of the article's folder
+            link_url (str): URL from the comment's section
+    '''
+    filename = 'links_in_comments.txt'
+    path = os.path.join(article_dir, filename)
+    with open(path, 'w') as fp:
+        fp.write(link_url+'\n')
+        logging.info('Write link to the file the {}'.format(path))
 
 
 async def write_links_to_store(links_hash, rank):
@@ -88,19 +111,22 @@ async def write_links_to_store(links_hash, rank):
    
 
 async def main(output_dir):
+    ''' Run homepage parser and the parser for the article's pages 
+    '''
     tasks = []
 
     home_page_html = await fetch(URL)
-    articles = await parse_main_page(home_page_html)
+    articles_url = await parse_main_page(home_page_html)
 
     # TO-DO check if link has been downloaded and processed
-    logging.info('Parsed the main page: {} new articles'.format(len(articles)))
+    logging.info('Parsed the main page: {} new articles'.format(len(articles_url)))
 
-    for article_url in articles:
-        article_dir = output_dir.joinpath(article.id)
+    for article_url in articles_url:
+        article_id = re.search("^item\?id=(.*)", article_url).groups()[0]
+        article_dir = output_dir.joinpath(article_id)
         article_dir.mkdir(parents=True, exist_ok=True)
         
-        task = asyncio.create_task(parse_article_page(URL+article_url))
+        task = asyncio.create_task(parse_article_page(article_dir, URL+article_url))
         tasks.append(task)
         await asyncio.sleep(1)
     await asyncio.gather(*tasks)
@@ -135,8 +161,6 @@ def parse_arguments():
     )
     parser.add_argument('-o', '--output', type=str, default=DOCUMENT_ROOT,
                         help='Output files directory')
-    parser.add_argument('-i', '--interval', type=int, default=CHECK_INTERVAL,
-                        help='Main page check interval (seconds)')
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Show debug messages')
 
@@ -152,7 +176,7 @@ if __name__ == '__main__':
     output_dir.mkdir(parents=True, exist_ok=True)
     
     if sys.version_info >= (3,7):
-        asyncio.run(main())
+        asyncio.run(main(output_dir))
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
