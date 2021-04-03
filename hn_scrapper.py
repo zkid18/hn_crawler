@@ -22,6 +22,7 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1 Safari/605.1.15',
 }
 DOCUMENT_ROOT = 'links'
+TIMEOUT_INTERVAL = 60
 
 async def fetch(url):
     '''
@@ -84,7 +85,7 @@ async def parse_article_page(article_dir, article_url):
     links = soup.find_all(rel="nofollow")
     valid_links = [link['href'] for link in links]
     for link in valid_links:
-        write_articles_to_disk(article_dir, article_url)
+        write_articles_to_disk(article_dir, link)
     return valid_links
 
 
@@ -100,7 +101,7 @@ def write_articles_to_disk(article_dir, link_url):
     path = os.path.join(article_dir, filename)
     with open(path, 'w') as fp:
         fp.write(link_url+'\n')
-        logging.info('Write link to the file the {}'.format(path))
+        logging.info('Write {} to the file the {}'.format(link_url, path))
 
 
 async def write_links_to_store(links_hash, rank):
@@ -124,6 +125,8 @@ async def main(output_dir):
     for article_url in articles_url:
         article_id = re.search("^item\?id=(.*)", article_url).groups()[0]
         article_dir = output_dir.joinpath(article_id)
+        if os.path.isdir(article_dir):
+            continue
         article_dir.mkdir(parents=True, exist_ok=True)
         
         task = asyncio.create_task(parse_article_page(article_dir, URL+article_url))
@@ -132,10 +135,15 @@ async def main(output_dir):
     await asyncio.gather(*tasks)
 
 
-async def monitor_main():
+async def monitor_main(output_dir, interval):
+    '''Monitor the main on the specified intervals
+        Args:
+            output_dir (str): Name of the output's folder
+            interval (int): Time interval for the periodic tasks
+    '''
     while True:
         try:
-            await asyncio.wait_for(parse_main_page, timeout=interval)
+            await asyncio.wait_for(main(output_dir), timeout=interval)
         except Exception as e:
             logging.error('Crawler failed: {}'.format(e))
         await asyncio.sleep(interval)
@@ -161,27 +169,26 @@ def parse_arguments():
     )
     parser.add_argument('-o', '--output', type=str, default=DOCUMENT_ROOT,
                         help='Output files directory')
+    parser.add_argument('-i', '--interval', type=str, default=TIMEOUT_INTERVAL,
+                        help='Output files directory')
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Show debug messages')
 
     return parser.parse_args()
 
 if __name__ == '__main__':
-    # TO-DO
-
     args = parse_arguments()
     setup_logger(args.debug)
 
     output_dir = pathlib.Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    interval = args.interval
     
-    if sys.version_info >= (3,7):
-        asyncio.run(main(output_dir))
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(main(output_dir))
-    finally:
-        loop.close()
-        asyncio.set_event_loop(None)
+        asyncio.run(monitor_main(output_dir, interval))
+    except asyncio.CancelledError:
+        logging.info('Crawler canceled')
+    except KeyboardInterrupt:
+        logging.info('Crawler stopped')
+    
